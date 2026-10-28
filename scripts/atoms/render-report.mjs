@@ -6,7 +6,7 @@
 // 用法：
 //   node atoms/render-report.mjs --place "楼上大厅" --scan scan.json --measure m1.json --measure m2.json
 //   node atoms/render-report.mjs --place "楼上书房" --scan scan.json --append
-//   node atoms/render-report.mjs --place X --scan scan.json --log D:\...\position-log.md
+//   node atoms/render-report.mjs --place X --scan scan.json --log <输出目录>/position-log.md
 
 import fs from 'node:fs';
 import path from 'node:path';
