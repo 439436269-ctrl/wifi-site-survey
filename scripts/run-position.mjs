@@ -21,7 +21,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { DEFAULT_SSIDS, DEFAULT_OUT, parseArgs } from './lib/config.mjs';
-import { currentSsid } from './lib/wifi.mjs';
+import { currentSsid, restoreConnection } from './lib/wifi.mjs';
 
 // 主动销毁测速 socket 时，偶发 unhandledRejection（Node 会因此以 1 退出）。
 // 这类噪声不该让整轮测试被判定失败，所以只记警告、不改变退出码。
@@ -125,8 +125,10 @@ try {
   try {
     const back = previousSsid || ssids[0];
     if (back) {
-      execFileSync('cmd', ['/c', `chcp 65001 >nul && netsh wlan connect name="${back}"`], { stdio: 'ignore' });
-      console.error(`[reconnect] 已尝试连回：${back}`);
+      // 验证式还原：等到 currentSsid() 真的等于目标才算成功。
+      // 只发命令不等结果，用户会以为连回来了其实还断着。
+      const ok = await restoreConnection(back);
+      console.error(ok ? `[reconnect] 已连回 ${back}` : `[reconnect] ⚠️  连回 ${back} 失败，请手动连接`);
     }
   } catch {}
   try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {}

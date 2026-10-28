@@ -6,11 +6,12 @@
 //
 // 用法：
 //   node atoms/measure-ssid.mjs --ssid "我的WiFi-5G"
+//   node atoms/measure-ssid.mjs --ssid X --restore   # 测完连回原来的
 //   node atoms/measure-ssid.mjs --ssid "办公室WiFi" --threads 8 --seconds 6 --out m.json
 
 import fs from 'node:fs';
 import { DEFAULT_URL, parseArgs, apName } from '../lib/config.mjs';
-import { connect, waitConnected, currentSsid, field, pingAvg, defaultGateway, sleep } from '../lib/wifi.mjs';
+import { connect, waitConnected, currentSsid, field, pingAvg, defaultGateway, restoreConnection, sleep } from '../lib/wifi.mjs';
 import { measureThroughput } from '../lib/throughput.mjs';
 
 const args = parseArgs();
@@ -24,6 +25,9 @@ const threads = Number(args.threads ?? 8);
 const seconds = Number(args.seconds ?? 6);
 const url = args.url ?? DEFAULT_URL;
 const userAgent = args.ua ?? 'wifi-test/1.0';
+
+// 加 --restore 时，测完连回这里记下的那个
+const previousSsid = args.restore ? currentSsid() : '';
 
 connect(ssid);
 const ok = await waitConnected(ssid);
@@ -67,6 +71,15 @@ const gwMs = pingAvg(defaultGateway(), 5);
     gwMs,
     ts: new Date().toISOString(),
   };
+}
+
+// --restore：测完连回测之前那个。
+// 默认不还原 —— 这个原子的动词就是「连上去测」，批量连测 N 个 SSID 时
+// 每次都还原会把时间全花在反复关联上；批量场景由 run-position 在最后统一还原一次。
+if (args.restore && previousSsid && previousSsid !== ssid) {
+  const back = await restoreConnection(previousSsid);
+  result.restoredTo = back ? previousSsid : null;
+  console.error(back ? `[measure-ssid] 已连回 ${previousSsid}` : `[measure-ssid] ⚠️  连回 ${previousSsid} 失败`);
 }
 
 const json = JSON.stringify(result, null, 2);

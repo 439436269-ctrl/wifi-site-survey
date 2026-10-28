@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // 原子①：扫描各 AP 信号
 //
-// 断开 → 连扫 N 次 → 每个 BSSID 取中位 → 输出 JSON
+// 断开 → 连扫 N 次 → 每个 BSSID 取中位 → 输出 JSON → **默认连回原来的 SSID**
 // 为什么必须断开：连着时网卡只在当前信道工作，其它信道读的是缓存。
 // 实测同一位置：连着扫 AP-1 5G = 45%，断开扫 = 94%。
 //
@@ -9,11 +9,11 @@
 //   node atoms/scan-ap.mjs                       # 打印 JSON
 //   node atoms/scan-ap.mjs --out scan.json       # 写文件
 //   node atoms/scan-ap.mjs --rounds 3 --wait 4
-//   node atoms/scan-ap.mjs --keep-connected      # 扫完自动连回原 SSID
+//   node atoms/scan-ap.mjs --stay-disconnected    # 扫完**不**连回（默认会连回）
 
 import fs from 'node:fs';
 import { OWN_PREFIX, apName, parseArgs } from '../lib/config.mjs';
-import { disconnect, listNetworks, connect, currentSsid, sleep } from '../lib/wifi.mjs';
+import { disconnect, listNetworks, currentSsid, restoreConnection, sleep } from '../lib/wifi.mjs';
 
 const args = parseArgs();
 const rounds = Number(args.rounds ?? 3);
@@ -78,9 +78,20 @@ const result = {
   aps,
 };
 
-if (args['keep-connected'] && previous) {
-  connect(previous);
-  await sleep(6000);
+// 默认连回扫描前那个 SSID —— 一个测量工具不该把用户的机器留在断网状态。
+// 连回要**验证**：命令成功 ≠ 已经连上，失败时必须喊出来，否则用户以为回来了其实还断着。
+if (!args['stay-disconnected']) {
+  if (previous) {
+    const ok = await restoreConnection(previous);
+    result.restored = ok;
+    console.error(ok ? `[scan-ap] 已连回 ${previous}` : `[scan-ap] ⚠️  连回 ${previous} 失败，请手动连接`);
+  } else {
+    result.restored = null;
+    console.error('[scan-ap] 扫描前本来就没连 WiFi，保持断开');
+  }
+} else {
+  result.restored = false;
+  console.error(`[scan-ap] --stay-disconnected：保持断开${previous ? `（原本连着 ${previous}）` : ''}`);
 }
 
 const json = JSON.stringify(result, null, 2);

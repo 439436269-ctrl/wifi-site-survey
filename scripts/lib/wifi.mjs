@@ -80,6 +80,19 @@ export async function waitConnected(ssid, tries = 6, intervalMs = 2000) {
   return false;
 }
 
+/**
+ * 连回某个 SSID 并**等它真的连上**。
+ *
+ * 光发 `netsh wlan connect` 是不够的：命令返回成功也不代表关联完成，
+ * 更不代表拿得到地址。过去用「connect + sleep(6s)」当完成，用户以为回来了其实还断着。
+ * 这里等到 `currentSsid()` 真的等于目标才返回 true。
+ */
+export async function restoreConnection(ssid, tries = 6, intervalMs = 1500) {
+  if (!ssid) return false;
+  connect(ssid);
+  return waitConnected(ssid, tries, intervalMs);
+}
+
 /** 一次扫描，返回 [{ssid, bssid, signal, band, channel, radio}]（原始，未过滤） */
 export function listNetworks() {
   const lines = run('netsh wlan show networks mode=bssid').split(/\r?\n/);
@@ -107,12 +120,11 @@ export function listNetworks() {
   return nets;
 }
 
-/** ping 网关，返回平均延迟（ms），失败返回 null */
 /**
  * 自动探测本机默认网关。
  *
- * 写死一个固定网关在别人家里往往是错的（各厂商的出厂网关不在同一段），
- * 探不到就返回空字符串 —— 调用方据此跳过 ping，而不是测出一个假的延迟。
+ * 写死一个固定网关在别人家里往往是错的（各厂商出厂网关不在同一段）。
+ * 探不到就返回空字符串，调用方据此跳过 ping —— 宁可缺一项，也不给一个假数字。
  */
 export function defaultGateway() {
   const out = run('ipconfig');
@@ -122,6 +134,7 @@ export function defaultGateway() {
   return m ? m[1].trim() : '';
 }
 
+/** ping 网关，返回平均延迟（ms），失败返回 null */
 export function pingAvg(host, count = 5) {
   if (!host) return null;
   const out = run(`ping -n ${count} ${host}`);

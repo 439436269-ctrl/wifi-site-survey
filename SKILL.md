@@ -44,6 +44,12 @@ node run-position.mjs --place "楼上大厅"
 # 只扫信号（不下载，约 40 秒）
 node run-position.mjs --place "二楼书房" --signal-only
 
+# 扫完不连回（默认会连回扫描前那个 SSID）
+node atoms/scan-ap.mjs --stay-disconnected
+
+# 测单个 SSID，测完连回原来的
+node atoms/measure-ssid.mjs --ssid "我的WiFi-5G" --restore
+
 # 只测指定 SSID / 改并发与时长
 node run-position.mjs --place "车间" --ssid "我的WiFi-5G" --ssid "我的WiFi" --threads 8 --seconds 6
 ```
@@ -61,7 +67,7 @@ scripts/
 ├─ run-position.mjs          编排①：扫信号 → 逐个测 SSID → 排版 + 落记录
 ├─ aggregate.mjs             原子④：多点位汇总（纯分析，不碰网络）
 ├─ atoms/
-│   ├─ scan-ap.mjs           原子①：断开 → 连扫 N 次 → 各 BSSID 信号 JSON
+│   ├─ scan-ap.mjs           原子①：断开 → 连扫 N 次 → 各 BSSID 信号 → **默认连回原 SSID**
 │   ├─ measure-ssid.mjs      原子②：连一个 SSID → 预热 → 测吞吐 → JSON
 │   └─ render-report.mjs     原子③：读 JSON → 输出 Markdown（不碰网络）
 └─ lib/
@@ -170,6 +176,22 @@ node aggregate.mjs --dir ../records --all              # 同点位多条记录�
   结果是**每台 AP 都报 0% 且不报错**。换机器后第一件事：先手工跑一遍
   `netsh wlan show networks mode=bssid` 看标签语言，不是英文就先改 `lib/wifi.mjs` 的正则。
 - **测完连回「扫描前那个」SSID**（不是配置里的第一个）—— 后者在别人的网络上不存在，会把人直接断网
+- **连回是验证式的**：等到 `currentSsid()` 真的等于目标才算成功，失败会打印
+  `⚠️ 连回 X 失败，请手动连接`。只发 `netsh wlan connect` 不等结果，用户会以为回来了其实还断着
+
+### 连接状态策略：默认不动用户的连接
+
+一个测量工具不该把用户的机器留在断网/连错网的状态。三个会碰连接的脚本各自的行为：
+
+| 脚本 | 碰连接吗 | 结束时的状态 | 怎么改 |
+|---|---|---|---|
+| `scan-ap`（扫信号） | 必须断开（否则只看得到当前信道） | **默认连回扫描前那个** | `--stay-disconnected` 保持断开 |
+| `measure-ssid`（测吞吐） | 必须连上目标 SSID | 留在最后测的那个（批量连测时每次还原会白等） | `--restore` 测完连回 |
+| `run-position`（编排） | 间接 | 连回扫描前那个（验证式） | — |
+
+原则：**除非这个原子的动词本身就是「改连接」，否则不许改变用户原来的连接。**
+`scan-ap` 的断开只是手段，所以它必须还原；`measure-ssid` 的连上去就是目的，所以它不自动还原，
+由上层编排在最后统一还原一次。
 - **输出目录**默认是当前工作目录下的 `survey-out/`，可用环境变量 `WIFI_SURVEY_OUT` 覆盖；
   不再写死本机绝对路径
 - **扫到 0 个自家 AP 时会打印警告**并给出修改指引，不再静默返回空数组（空数组会被读成「这里没有 WiFi」）
