@@ -1,0 +1,18 @@
+{
+  "name": "wifi-site-survey",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "家庭 WiFi 点位实测：扫每个位置的 AP 信号、逐个 SSID 测吞吐，再汇总成矩阵与连接建议",
+  "license": "MIT",
+  "bin": {
+    "wifi-survey": "scripts/run-position.mjs"
+  },
+  "scripts": {
+    "test": "node --test test/labels.test.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": ["wifi", "survey", "netsh", "throughput", "rssi", "windows"],
+  "files": ["scripts", "test", "SKILL.md", "README.md", "LICENSE"]
+}
