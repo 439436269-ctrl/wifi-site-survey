@@ -1,0 +1,7 @@
+node_modules/
+survey-out/
+records/
+position-log.md
+*.log
+.DS_Store
+Thumbs.db
